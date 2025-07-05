@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>La Historia Novelada de...</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Script para generar PDF -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <style>
+    /* Custom styles for specific elements not easily covered by Tailwind, or for dynamic classes */
+    body {
+      font-family: 'Inter', sans-serif; /* Ensure Inter font is used */
+    }
+
+    /* Active states for screens and chapters handled by JS toggling Tailwind classes */
+    .app-screen.active {
+        display: block;
+        opacity: 1;
+    }
+    .chapter-content.active {
+        display: block;
+        opacity: 1;
+    }
+    /* Specific shadow for active chapter button */
+    .chapter-navigation button.active {
+      box-shadow: inset 0 0 8px rgba(0,0,0,0.3);
+    }
+  </style>
+</head>
+<body class="m-0 font-sans bg-blue-50 text-gray-800">
+  <!-- Banner de la página con la imagen proporcionada por el usuario -->
+  <header id="banner" class="w-full h-52 bg-[url('https://github.com/expliKarlos/VibeCoding/blob/main/Banner1200_343.jpg')] bg-center bg-cover flex items-center justify-center shadow-md rounded-b-xl"></header>
+  <h1 id="sobreTitulo" class="text-center text-4xl md:text-5xl my-8 text-gray-800 drop-shadow-sm">La Historia Novelada de...</h1>
+  <main class="flex flex-col items-center w-full">
+    <!-- Primera pantalla: Introducción y formulario -->
+    <div id="intro-screen" class="app-screen opacity-0 transition-opacity duration-500 ease-in-out hidden max-w-3xl mx-auto my-8 p-6 bg-white shadow-lg rounded-xl">
+      <div class="text-center p-4">
+        <p class="text-lg leading-relaxed mb-4">Disfruta de una manera distinta de conocer a un personaje, un lugar, un monumento o un suceso.</p>
+        <div class="flex flex-col gap-4 mt-6 items-center">
+          <label for="entrada" class="text-xl text-gray-700 font-bold">Elige tu personaje, suceso o lugar:</label>
+          <input type="text" id="entrada" placeholder="Ej. Juana la Loca, La Alhambra..." class="p-3 border border-gray-300 rounded-lg text-base w-4/5 max-w-md box-border focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <button onclick="descubrir()" class="px-8 py-4 text-lg cursor-pointer border-none rounded-lg transition-all duration-300 ease-in-out text-white bg-blue-500 shadow-md hover:bg-blue-600 hover:-translate-y-0.5 active:translate-y-0">Descubrir</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Segunda pantalla: Contenido de la historia (inicialmente oculta) -->
+    <div id="story-screen" class="app-screen opacity-0 transition-opacity duration-500 ease-in-out hidden max-w-3xl mx-auto my-8 p-6 bg-white shadow-lg rounded-xl">
+      <h1 id="Titulo" class="text-3xl md:text-4xl text-center mb-6 text-blue-700"></h1> <!-- Este título se actualizará con el input del usuario -->
+
+      <!-- Contenedor para los capítulos -->
+      <div id="chapters-container">
+          <!-- Los capítulos se generarán dinámicamente aquí -->
+      </div>
+
+      <!-- Botonera de capítulos (se generará dinámicamente) -->
+      <div class="chapter-navigation flex justify-center gap-4 mt-8 mb-8 flex-wrap">
+          <!-- Los botones de capítulo se insertarán aquí mediante JavaScript -->
+      </div>
+    </div>
+  </main>
+  <footer class="flex flex-col sm:flex-row justify-center gap-4 sm:gap-6 m-4 sm:m-8 p-4 bg-gray-800 rounded-t-xl shadow-md">
+    <button onclick="reIniciarApp()" class="px-6 py-3 text-lg cursor-pointer border-none rounded-lg transition-all duration-300 ease-in-out text-white bg-blue-500 shadow-md hover:bg-blue-600 hover:-translate-y-0.5 active:translate-y-0">ReIniciar</button>
+    <button onclick="generarPDF()" class="px-6 py-3 text-lg cursor-pointer border-none rounded-lg transition-all duration-300 ease-in-out text-white bg-blue-500 shadow-md hover:bg-blue-600 hover:-translate-y-0.5 active:translate-y-0">Generar PDF</button>
+    <button onclick="copiarContenido()" class="px-6 py-3 text-lg cursor-pointer border-none rounded-lg transition-all duration-300 ease-in-out text-white bg-blue-500 shadow-md hover:bg-blue-600 hover:-translate-y-0.5 active:translate-y-0">Copiar</button>
+  </footer>
+
+  <script>
+    // Global variables for chapter navigation
+    let chapterDivsGlobal = [];
+    let totalChaptersGlobal = 0;
+    let currentChapterGlobal = 1;
+
+    /**
+     * Función para copiar el contenido del elemento "contenido" al portapapeles.
+     */
+    function copiarContenido() {
+      const contenido = document.getElementById("story-screen"); // Copiar el contenido de la pantalla de la historia
+      const range = document.createRange();
+      range.selectNodeContents(contenido);
+      const selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+      try {
+        document.execCommand('copy');
+        displayMessage('Contenido copiado al portapapeles', 'success');
+      } catch (err) {
+        displayMessage('Error al copiar el contenido', 'error');
+      }
+      selection.removeAllRanges();
+    }
+
+    /**
+     * Función para mostrar mensajes al usuario (reemplazo de alert).
+     * @param {string} message - El mensaje a mostrar.
+     * @param {string} type - El tipo de mensaje ('success' o 'error').
+     */
+    function displayMessage(message, type) {
+        const messageBox = document.createElement('div');
+        messageBox.textContent = message;
+        // Using a mix of Tailwind and inline styles for dynamic positioning and colors
+        messageBox.className = `fixed top-5 left-1/2 -translate-x-1/2 p-3 px-5 rounded-lg text-white font-bold z-50 shadow-lg opacity-0 transition-opacity duration-500 ease-in-out`;
+        if (type === 'success') {
+            messageBox.style.backgroundColor = '#28a745'; /* Green */
+        } else if (type === 'error') {
+            messageBox.style.backgroundColor = '#dc3545'; /* Red */
+        }
+        document.body.appendChild(messageBox);
+
+        // Animate appearance and disappearance
+        setTimeout(() => {
+            messageBox.style.opacity = 1;
+        }, 10); // Small delay for transition to work
+
+        setTimeout(() => {
+            messageBox.style.opacity = 0;
+            messageBox.addEventListener('transitionend', () => messageBox.remove());
+        }, 3000); // Message disappears after 3 seconds
+    }
+
+    /**
+     * Función para generar un PDF del contenido de la historia.
+     */
+    async function generarPDF() {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({ unit: 'cm', format: 'a4' });
+      const margen = 1.5;
+      let y = margen;
+
+      // Banner image (using the original placeholder for PDF as Google Drive links might not work)
+      const img = new Image();
+      img.src = 'https://github.com/expliKarlos/VibeCoding/blob/main/Banner1200_343.jpg'; // Keeping the placeholder for PDF
+      if (img.src) {
+        try {
+          await img.decode();
+          doc.addImage(img, 'JPG', margen, y, 17, 3.5);
+          y += 4.5;
+        } catch (e) {
+          console.warn('No se pudo cargar la imagen del banner para PDF:', e);
+        }
+      }
+
+      // Main title
+      const tituloElemento = document.getElementById("Titulo");
+      const tituloTexto = tituloElemento ? tituloElemento.textContent.trim() : "La Historia Novelada";
+      doc.setFont('Inter', 'bold');
+      doc.setFontSize(18);
+      doc.text(tituloTexto, 10.5, y, { align: "center" });
+      y += 1.5;
+
+      // Content of all chapters
+      const chaptersContainer = document.getElementById("chapters-container");
+      const allChapterContents = chaptersContainer.querySelectorAll(".chapter-content");
+      doc.setFont('Inter');
+
+      allChapterContents.forEach(chapterDiv => {
+        const chapterTitle = chapterDiv.querySelector('h2');
+        const paragraphs = chapterDiv.querySelectorAll('p');
+
+        // Add chapter title
+        if (chapterTitle) {
+          doc.setFontSize(14);
+          doc.setFont(undefined, 'bold');
+          const splitChapterTitle = doc.splitTextToSize(chapterTitle.textContent, 17);
+          if (y + splitChapterTitle.length * 0.8 > 27.5) { // Adjust for new page
+            doc.addPage();
+            y = margen;
+          }
+          doc.text(splitChapterTitle, margen, y);
+          y += splitChapterTitle.length * 0.8 + 0.5;
+        }
+
+        // Add paragraphs of the chapter
+        paragraphs.forEach(p => {
+          doc.setFontSize(11);
+          doc.setFont(undefined, 'normal');
+          // Use textContent to avoid issues with HTML tags in PDF generation for now
+          const splitText = doc.splitTextToSize(p.textContent, 17);
+          if (y + splitText.length * 0.6 > 27.5) { // Adjust for new page
+            doc.addPage();
+            y = margen;
+          }
+          doc.text(splitText, margen, y);
+          y += splitText.length * 0.6 + 0.4;
+        });
+        y += 0.8; // Space between chapters
+      });
+
+      const nombreArchivo = tituloTexto.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ ]/g, "").replace(/\s+/g, "_") + ".pdf";
+      doc.save(nombreArchivo);
+    }
+
+    /**
+     * Función para mostrar un capítulo específico y ocultar los demás.
+     * También actualiza el estado de los botones de navegación.
+     * @param {number} n - El número del capítulo a mostrar.
+     */
+    window.showChapter = function(n) {
+      console.log(`Intentando mostrar capítulo: ${n}`);
+      
+      if (n < 1 || n > totalChaptersGlobal) {
+          console.warn(`Intento de mostrar capítulo inválido: ${n}. Total capítulos: ${totalChaptersGlobal}`);
+          return;
+      }
+
+      // Hide all chapters
+      chapterDivsGlobal.forEach((div, i) => {
+        div.classList.remove('active', 'opacity-100');
+        div.classList.add('hidden', 'opacity-0');
+      });
+
+      // Show the requested chapter
+      const targetChapter = chapterDivsGlobal[n - 1];
+      if (targetChapter) {
+        targetChapter.classList.remove('hidden');
+        // Use setTimeout to allow 'display: block' to apply before transition
+        setTimeout(() => {
+          targetChapter.classList.add('active', 'opacity-100');
+        }, 10);
+        console.log(`Capítulo ${n} activado.`);
+      }
+
+      // Update navigation buttons
+      const botonera = document.querySelector(".chapter-navigation");
+      const buttons = botonera.querySelectorAll("button.chapter-btn");
+      buttons.forEach((btn, i) => {
+        btn.classList.toggle("active", i === n - 1);
+        btn.classList.toggle("bg-teal-500", i === n - 1);
+        btn.classList.toggle("bg-green-500", i !== n - 1);
+      });
+
+      const prevBtn = document.getElementById('prevBtn');
+      const nextBtn = document.getElementById('nextBtn');
+      if (prevBtn) prevBtn.disabled = (n === 1);
+      if (nextBtn) nextBtn.disabled = (n === totalChaptersGlobal);
+
+      currentChapterGlobal = n;
+      console.log(`currentChapterGlobal actualizado a: ${currentChapterGlobal}`);
+    };
+
+    /**
+     * Función para crear dinámicamente la botonera de capítulos.
+     * Incluye botones "Anterior", "Siguiente" y botones para cada capítulo.
+     */
+    window.crearBotonera = function() {
+      console.log("Creando botonera...");
+      const botonera = document.querySelector(".chapter-navigation");
+      botonera.innerHTML = ""; // Clear existing button bar
+
+      if (totalChaptersGlobal === 0) {
+          console.log("No hay capítulos para crear botonera.");
+          return;
+      }
+
+      const prevBtn = document.createElement("button");
+      prevBtn.id = "prevBtn";
+      prevBtn.textContent = "Anterior";
+      prevBtn.className = "px-4 py-2 text-base cursor-pointer border-none rounded-lg transition-all duration-300 ease-in-out text-white bg-green-500 shadow-md hover:bg-green-600 hover:-translate-y-0.5 active:translate-y-0";
+      prevBtn.onclick = () => window.showChapter(currentChapterGlobal - 1);
+      botonera.appendChild(prevBtn);
+      console.log("Botón 'Anterior' añadido.");
+
+      chapterDivsGlobal.forEach((div, index) => {
+        const num = index + 1;
+        const btn = document.createElement("button");
+        btn.textContent = `Capítulo ${num}`;
+        btn.className = "chapter-btn px-4 py-2 text-base cursor-pointer border-none rounded-lg transition-all duration-300 ease-in-out text-white bg-green-500 shadow-md hover:bg-green-600 hover:-translate-y-0.5 active:translate-y-0";
+        btn.onclick = () => window.showChapter(num);
+        botonera.appendChild(btn);
+        console.log(`Botón 'Capítulo ${num}' añadido.`);
+      });
+
+      const nextBtn = document.createElement("button");
+      nextBtn.id = "nextBtn";
+      nextBtn.textContent = "Siguiente";
+      nextBtn.className = "px-4 py-2 text-base cursor-pointer border-none rounded-lg transition-all duration-300 ease-in-out text-white bg-green-500 shadow-md hover:bg-green-600 hover:-translate-y-0.5 active:translate-y-0";
+      nextBtn.onclick = () => window.showChapter(currentChapterGlobal + 1);
+      botonera.appendChild(nextBtn);
+      console.log("Botón 'Siguiente' añadido. Botonera creada.");
+    };
+
+    /**
+     * Función para mostrar una pantalla principal de la aplicación y ocultar las demás.
+     * @param {string} screenId - El ID de la pantalla a mostrar ('intro-screen' o 'story-screen').
+     */
+    window.showScreen = function(screenId) {
+        console.log(`Cambiando a pantalla: ${screenId}`);
+        const screens = document.querySelectorAll('.app-screen');
+        
+        screens.forEach(screen => {
+            if (screen.id === screenId) {
+                screen.classList.remove('hidden');
+                // Use setTimeout to allow 'display: block' to apply before transition
+                setTimeout(() => {
+                    screen.classList.add('active', 'opacity-100');
+                }, 10);
+            } else {
+                screen.classList.remove('active', 'opacity-100');
+                screen.classList.add('hidden', 'opacity-0');
+            }
+        });
+    };
+
+    /**
+     * Función para inicializar la navegación de capítulos después de generar el contenido.
+     */
+    function initializeChapterNavigation() {
+        console.log("Inicializando navegación de capítulos...");
+        
+        // Update global variables
+        chapterDivsGlobal = Array.from(document.querySelectorAll("#chapters-container .chapter-content"));
+        totalChaptersGlobal = chapterDivsGlobal.length;
+        currentChapterGlobal = 1;
+        
+        console.log(`Total capítulos encontrados: ${totalChaptersGlobal}`);
+        
+        if (totalChaptersGlobal > 0) {
+            // Create the button bar
+            window.crearBotonera();
+            // Show the first chapter
+            window.showChapter(1);
+            console.log("Navegación de capítulos inicializada correctamente.");
+        } else {
+            console.warn("No se encontraron capítulos para inicializar la navegación.");
+        }
+    }
+
+    /**
+     * Función para manejar el evento de "Descubrir" y generar la historia.
+     */
+    window.descubrir = async function() {
+      const valor = document.getElementById("entrada").value;
+      if (!valor.trim()) {
+        displayMessage("Por favor, introduce un nombre o lugar.", 'error');
+        return;
+      }
+
+      // Update title and switch to story screen
+      document.getElementById("Titulo").textContent = `La Historia Novelada de ${valor}`;
+      window.showScreen('story-screen');
+
+      // Show loading message
+      const chaptersContainer = document.getElementById("chapters-container");
+      chaptersContainer.innerHTML = '<p class="loading-message text-center text-xl text-gray-700 mt-8">Generando tu historia... por favor espera.</p>';
+      
+      // Clear button bar while loading
+      const botonera = document.querySelector(".chapter-navigation");
+      botonera.innerHTML = '';
+      
+      console.log("Pantalla de historia mostrada con mensaje de carga.");
+
+      // Construct the prompt for the LLM based on the PromptHistorias.md
+      const llmPrompt = `Eres un experto narrador de historias históricas que combina las habilidades de un historiador, un experto en arte y un novelista histórico. Tu objetivo es crear relatos novelados y fidedignos sobre ${valor}.
+
+      Crea un relato estructurado en capítulos que incluya:
+      - Primer capítulo: Descripción del lugar y época de los hechos
+      - Segundo capítulo: Descripción del personaje o personajes principales
+      - Capítulos siguientes: Desarrollo de la trama en orden cronológico
+      - Último capítulo: Final acorde al destino del motivo del relato
+      - Epílogo: Conexión con la actualidad usando el formato "X años después... aún hoy..."
+
+      Estilo Narrativo:
+      - Tono: Minucioso, inmersivo y realista para la ambientación. Épico, idealizado y dramático para los personajes. Urgente, conspirativo y didáctico para las tramas.
+      - Estilo: Construcción escena por escena, integración de arquitectura e ingeniería. Descripción física inmediata y simbólica. Capítulos que terminan con elementos intrigantes.
+      - Describe rutinas diarias, oficios, jerarquía social, comida, vestimenta.
+      - Apela a los cinco sentidos para crear inmersión completa.
+      - No idealices el pasado; muestra tanto grandeza como dureza de la época.
+      - Revela personalidad a través de acciones y diálogos.
+      - Enfatiza cualidades dominantes de cada personaje.
+      - Crea arquetipos con rasgos distintivos memorables.
+      - Múltiples líneas argumentales que se entrelazan.
+      - Integra información histórica de manera orgánica.
+      - Mantén ritmo rápido con prosa directa y funcional.
+
+      Puedes:
+      - Inventar personajes secundarios
+      - Dramatizar eventos sin distorsionar hechos históricos significativos
+      - Añadir detalles descriptivos para enriquecer la narrativa
+      - Usar nombres descriptivos para personajes ficticios
+
+      Al final de cada párrafo o sección relevante, incluye placeholders con descripciones detalladas de las imágenes que deberían de acompañar al texto, usando el formato: [Placeholder: descripción de la imagen].
+
+      Genera la historia como un array de objetos JSON, donde cada objeto representa un capítulo. Cada capítulo debe tener un 'chapterTitle' (string) y 'paragraphs' (array de strings). Cada string en 'paragraphs' puede contener texto o placeholders de imagen.
+      `;
+
+      try {
+        console.log("Iniciando llamada a la API de Gemini...");
+        const apiKey = ""; // Leave as-is for Canvas to provide
+        console.log("API Key being used (should be empty if Canvas injects it):", apiKey); // Added for debugging
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
+        let chatHistory = [];
+        chatHistory.push({ role: "user", parts: [{ text: llmPrompt }] });
+        const payload = {
+          contents: chatHistory,
+          generationConfig: {
+            responseMimeType: "application/json",
+            responseSchema: {
+              type: "ARRAY",
+              items: {
+                type: "OBJECT",
+                properties: {
+                  "chapterTitle": { "type": "STRING" },
+                  "paragraphs": {
+                    "type": "ARRAY",
+                    "items": { "type": "STRING" }
+                  }
+                },
+                "propertyOrdering": ["chapterTitle", "paragraphs"]
+              }
+            }
+          }
+        };
+
+        const response = await fetch(apiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        console.log("Respuesta de la API recibida. Estado:", response.status);
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error("Error en la respuesta de la API:", response.status, errorText);
+          // More specific error message for 401
+          if (response.status === 401) {
+              displayMessage(`Error de autenticación (401). Por favor, asegúrate de que tu entorno Canvas está configurado correctamente para las llamadas a la API de Gemini.`, 'error');
+          } else {
+              displayMessage(`Error en la API: ${response.status}. Por favor, intenta de nuevo.`, 'error');
+          }
+          chaptersContainer.innerHTML = '<p class="text-center text-red-600 mt-8">Error al generar la historia. Por favor, intenta de nuevo.</p>';
+          return;
+        }
+
+        const result = await response.json();
+        console.log("Resultado de la API recibido correctamente");
+
+        if (result.candidates && result.candidates.length > 0 &&
+            result.candidates[0].content && result.candidates[0].content.parts &&
+            result.candidates[0].content.parts.length > 0) {
+          
+          const jsonText = result.candidates[0].content.parts[0].text;
+          console.log("Texto JSON recibido de la API");
+
+          let storyData;
+          try {
+            storyData = JSON.parse(jsonText);
+            console.log("Datos de la historia parseados correctamente");
+          } catch (parseError) {
+            console.error("Error al parsear el JSON:", parseError);
+            displayMessage('Error al procesar la historia: Formato de datos inesperado.', 'error');
+            chaptersContainer.innerHTML = '<p class="text-center text-red-600 mt-8">Error al procesar la historia. Formato de datos inesperado.</p>';
+            return;
+          }
+
+          // Clear loading message
+          chaptersContainer.innerHTML = '';
+          console.log("Mensaje de carga eliminado, generando capítulos...");
+
+          // Generate chapter content
+          storyData.forEach((chapter, index) => {
+            console.log(`Creando capítulo ${index + 1}: ${chapter.chapterTitle}`);
+            const chapterDiv = document.createElement('div');
+            chapterDiv.id = `chapter${index + 1}`;
+            chapterDiv.classList.add('chapter-content', 'opacity-0', 'transition-opacity', 'duration-500', 'ease-in-out', 'hidden');
+
+            const h2 = document.createElement('h2');
+            h2.textContent = chapter.chapterTitle;
+            h2.classList.add('text-2xl', 'font-bold', 'mt-6', 'mb-2', 'text-gray-700');
+            chapterDiv.appendChild(h2);
+
+            chapter.paragraphs.forEach(pText => {
+              const p = document.createElement('p');
+              p.innerHTML = pText; // Use innerHTML to allow bold/italic tags
+              p.classList.add('text-lg', 'leading-relaxed', 'mb-4');
+              chapterDiv.appendChild(p);
+            });
+            
+            chaptersContainer.appendChild(chapterDiv);
+          });
+
+          console.log("Todos los capítulos añadidos al DOM");
+
+          // Wait a moment for the DOM to update completely
+          setTimeout(() => {
+            console.log("Inicializando navegación de capítulos...");
+            initializeChapterNavigation();
+            displayMessage('Historia generada con éxito!', 'success');
+          }, 100);
+
+        } else {
+          console.error("La respuesta de la API no contiene datos válidos");
+          displayMessage('No se pudo generar la historia. Respuesta de la IA inválida.', 'error');
+          chaptersContainer.innerHTML = '<p class="text-center text-red-600 mt-8">No se pudo generar la historia. La IA no devolvió contenido válido.</p>';
+        }
+
+      } catch (error) {
+        console.error('Error general al llamar a la API de Gemini:', error);
+        displayMessage('Error al generar la historia. Error de conexión.', 'error');
+        chaptersContainer.innerHTML = '<p class="text-center text-red-600 mt-8">Error al generar la historia. Por favor, verifica tu conexión e inténtalo de nuevo.</p>';
+      }
+    };
+
+    /**
+     * Función para reiniciar la aplicación a la pantalla de introducción.
+     */
+    window.reIniciarApp = function() {
+      // Clear data
+      document.getElementById("entrada").value = "";
+      document.getElementById("Titulo").textContent = "";
+      document.getElementById("chapters-container").innerHTML = '';
+      
+      // Reset global variables
+      chapterDivsGlobal = [];
+      totalChaptersGlobal = 0;
+      currentChapterGlobal = 1;
+      
+      // Clear button bar
+      const botonera = document.querySelector(".chapter-navigation");
+      botonera.innerHTML = '';
+      
+      // Return to intro screen
+      window.showScreen('intro-screen');
+      console.log("Aplicación reiniciada correctamente.");
+    };
+
+    // Initial setup on DOMContentLoaded
+    document.addEventListener('DOMContentLoaded', () => {
+      window.showScreen('intro-screen');
+      console.log("DOM Cargado. Mostrando pantalla de introducción.");
+    });
+  </script>
+</body>
+</html>
